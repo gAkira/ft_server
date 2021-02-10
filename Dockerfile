@@ -1,54 +1,26 @@
+# uses debian buster image from Dockerhub
 FROM debian:buster
 
-ADD /srcs/database.sql /tmp/
+# update/upgrade and then install programs needed
+RUN apt-get -y update && \
+	apt-get -y upgrade && \
+	apt-get install -y \
+		nginx \
+		mariadb-server \
+		openssl \
+		php7.3 php-fpm php-mysql php-cli php-mbstring
 
-RUN apt-get update		&&	\
-	apt-get -y upgrade	&&	\
-	apt-get install -y		\
-		wget				\
-		nginx				\
-		mariadb-server		\
-		php-mysql			\
-		php-fpm				\
-		php-cli
+# copy source files to the container
+COPY srcs /tmp/srcs
 
-RUN wget https://wordpress.org/latest.tar.gz	&&	\
-	wget https://files.phpmyadmin.net/phpMyAdmin/4.9.5/phpMyAdmin-4.9.5-all-languages.tar.gz
+# configure services
+RUN bash /tmp/srcs/setup.sh
 
-RUN mkdir -p /var/www/html /var/www/info					&&	\
-	tar	-xf latest.tar.gz -C /var/www/						&&	\
-	tar -xf phpMyAdmin-4.9.5-all-languages.tar.gz			&&	\
-	mv phpMyAdmin-4.9.5-all-languages /var/www/phpmyadmin	&&	\
-	rm latest.tar.gz											\
-		phpMyAdmin-4.9.5-all-languages.tar.gz				&&	\
-	chown -R $USER:$USER /var/www/*							&&	\
-	chown -R www-data:www-data /var/www/*					&&	\
-	chmod -R 755 /var/www/*									&&	\
-	service mysql start										&&	\
-	mysql -u root --password= < /tmp/database.sql		&&	\
-	yes "" | openssl req -x509 -nodes -days 365 -newkey rsa:4096 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.crt
-
-ADD /srcs/server.conf /etc/nginx/sites-available/server.conf
-ADD /srcs/info.php /var/www/info/info.php
-ADD /srcs/wp-config.php /var/www/wordpress/wp-config.php
-ADD /srcs/config.inc.php /var/www/phpmyadmin/config.inc.php
-ADD /srcs/index.sh /tmp/index.sh
-
-RUN chmod 755 /var/www/phpmyadmin/config.inc.php				&&	\
-	ln -s /etc/nginx/sites-available/server.conf					\
-			/etc/nginx/sites-enabled/							&&	\
-	echo "alias index='bash /tmp/index.sh'" >> /root/.bashrc
-
+# expose ports 80 [HTTP] and 443 [HTTPS]
 EXPOSE 80 443
 
-CMD service nginx restart				&&	\
-	service mysql start					&&	\
-	service php7.3-fpm start			&&	\
-	bash /tmp/index.sh $index	&&	\
-	bash
-
-
-
+# start services
+ENTRYPOINT bash /tmp/srcs/start.sh
 
 
 
@@ -68,3 +40,4 @@ CMD service nginx restart				&&	\
 #              ░░░░░░█▀▀█████████▀▀▀▀████████████▀░░░░
 #              ░░░░░░████▀░░███▀░░░░░░▀███░░▀██▀░░░░░░
 #              ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
